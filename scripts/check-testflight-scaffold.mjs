@@ -92,6 +92,7 @@ for (const phrase of [
   "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
   "timeout-minutes: 8",
+  "/Applications/Xcode_26.3.app/Contents/Developer",
   'xcrun simctl bootstatus "$simulator_id" -b',
   "-parallel-testing-enabled NO",
   "-maximum-parallel-testing-workers 1",
@@ -105,6 +106,10 @@ for (const phrase of [
   if (!workflow.includes(phrase))
     failures.push(`workflow is missing ${phrase}`);
 }
+if ((workflow.match(/test \"\$major\" -ge 26/g) ?? []).length !== 2)
+  failures.push("both TestFlight jobs must fail closed below Xcode 26");
+if (!info.includes("UIInterfaceOrientationPortraitUpsideDown"))
+  failures.push("iPad multitasking requires upside-down portrait support");
 for (const forbidden of [
   "IOS_DISTRIBUTION_P12_BASE64",
   "IOS_DISTRIBUTION_P12_PASSWORD",

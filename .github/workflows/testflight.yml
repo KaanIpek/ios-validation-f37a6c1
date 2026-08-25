@@ -46,9 +46,10 @@ jobs:
         run: node scripts/check-testflight-scaffold.mjs
       - name: Select supported Xcode
         run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
           xcodebuild -version
           major="$(xcodebuild -version | awk '/Xcode/ {split($2,v,"."); print v[1]}')"
-          test "$major" -ge 16
+          test "$major" -ge 26
       - name: Install constrained XcodeGen
         run: |
           brew install xcodegen
@@ -113,6 +114,12 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22.17.0
+      - name: Select supported Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+          major="$(xcodebuild -version | awk '/Xcode/ {split($2,v,"."); print v[1]}')"
+          test "$major" -ge 26
       - name: Require explicit upload confirmation and recorded evidence
         run: |
           test "${{ inputs.confirm_upload }}" = "UPLOAD_INTERNAL_TESTFLIGHT"
