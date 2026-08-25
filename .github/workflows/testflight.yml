@@ -1,0 +1,195 @@
+name: internal-testflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Validate the iOS candidate or upload an approved internal build
+        required: true
+        default: validate-only
+        type: choice
+        options:
+          - validate-only
+          - upload-internal
+      confirm_upload:
+        description: Type UPLOAD_INTERNAL_TESTFLIGHT for an upload
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: internal-testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      APPLE_TEAM_ID: 6U7VZ57P8K
+      IOS_BUNDLE_ID: com.kaan.ipek.groceryos
+      IOS_SHARE_BUNDLE_ID: com.kaan.ipek.groceryos.share
+      IOS_APP_GROUP_ID: group.com.kaan.ipek.groceryos
+      GROCERY_WEB_BASE_URL: https://invalid.example
+      GROCERY_MARKETING_VERSION: 0.1.0
+      GROCERY_BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22.17.0
+      - name: Validate fail-closed scaffold
+        run: node scripts/check-testflight-scaffold.mjs
+      - name: Select supported Xcode
+        run: |
+          xcodebuild -version
+          major="$(xcodebuild -version | awk '/Xcode/ {split($2,v,"."); print v[1]}')"
+          test "$major" -ge 16
+      - name: Install constrained XcodeGen
+        run: |
+          brew install xcodegen
+          version_output="$(xcodegen --version 2>/dev/null || xcodegen version)"
+          case "$version_output" in *2.46.0*) ;; *) echo "Expected XcodeGen 2.46.0"; exit 1 ;; esac
+      - name: Generate reviewed app icon
+        run: |
+          sips -z 1024 1024 \
+            apps/web/public/brand/grocery-os-stitch-logo.png \
+            --out apps/ios/GroceryOS/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+      - name: Generate Xcode project and validate property lists
+        run: |
+          xcodegen generate --spec apps/ios/project.yml
+          find apps/ios -type f \( -name '*.plist' -o -name '*.xcprivacy' -o -name '*.entitlements' \) \
+            -print0 | xargs -0 -n1 plutil -lint
+      - name: Run iOS simulator tests
+        run: |
+          simulator_id="$(xcrun simctl list devices available -j | \
+            jq -r '[.devices[][] | select(.isAvailable and (.name | startswith("iPhone")))][0].udid')"
+          test -n "$simulator_id"
+          test "$simulator_id" != "null"
+          xcodebuild test \
+            -project apps/ios/GroceryOS.xcodeproj \
+            -scheme GroceryOS \
+            -destination "platform=iOS Simulator,id=$simulator_id" \
+            CODE_SIGNING_ALLOWED=NO \
+            APPLE_TEAM_ID="$APPLE_TEAM_ID" \
+            IOS_BUNDLE_ID="$IOS_BUNDLE_ID" \
+            IOS_SHARE_BUNDLE_ID="$IOS_SHARE_BUNDLE_ID" \
+            IOS_APP_GROUP_ID="$IOS_APP_GROUP_ID" \
+            GROCERY_WEB_BASE_URL="$GROCERY_WEB_BASE_URL" \
+            GROCERY_MARKETING_VERSION="$GROCERY_MARKETING_VERSION" \
+            GROCERY_BUILD_NUMBER="$GROCERY_BUILD_NUMBER"
+
+  upload-internal:
+    if: ${{ inputs.operation == 'upload-internal' }}
+    needs: validate
+    runs-on: macos-15
+    timeout-minutes: 35
+    environment: testflight
+    env:
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      IOS_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID }}
+      IOS_SHARE_BUNDLE_ID: ${{ vars.IOS_SHARE_BUNDLE_ID }}
+      IOS_APP_GROUP_ID: ${{ vars.IOS_APP_GROUP_ID }}
+      GROCERY_WEB_BASE_URL: ${{ secrets.GROCERY_WEB_BASE_URL }}
+      GROCERY_MARKETING_VERSION: ${{ vars.GROCERY_MARKETING_VERSION }}
+      GROCERY_BUILD_NUMBER: ${{ github.run_number }}
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_P8_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8_BASE64 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 22.17.0
+      - name: Require explicit upload confirmation and recorded evidence
+        run: |
+          test "${{ inputs.confirm_upload }}" = "UPLOAD_INTERNAL_TESTFLIGHT"
+          node scripts/check-testflight-release-candidate.mjs
+      - name: Verify required secret presence without printing values
+        run: |
+          required=(APPLE_TEAM_ID IOS_BUNDLE_ID IOS_SHARE_BUNDLE_ID IOS_APP_GROUP_ID \
+            GROCERY_WEB_BASE_URL APP_STORE_CONNECT_API_KEY_ID APP_STORE_CONNECT_ISSUER_ID \
+            APP_STORE_CONNECT_API_KEY_P8_BASE64)
+          for name in "${required[@]}"; do test -n "${!name}" || { echo "Missing required secret: $name"; exit 1; }; done
+          case "$GROCERY_WEB_BASE_URL" in https://*) ;; *) echo "GROCERY_WEB_BASE_URL must use HTTPS"; exit 1 ;; esac
+      - name: Install constrained XcodeGen and create icon
+        run: |
+          brew install xcodegen
+          version_output="$(xcodegen --version 2>/dev/null || xcodegen version)"
+          case "$version_output" in *2.46.0*) ;; *) echo "Expected XcodeGen 2.46.0"; exit 1 ;; esac
+          sips -z 1024 1024 \
+            apps/web/public/brand/grocery-os-stitch-logo.png \
+            --out apps/ios/GroceryOS/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+          xcodegen generate --spec apps/ios/project.yml
+      - name: Install the App Store Connect key
+        run: |
+          mkdir -p "$HOME/private_keys"
+          key_path="$HOME/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8"
+          printf '%s' "$APP_STORE_CONNECT_API_KEY_P8_BASE64" | \
+            tr -dc 'A-Za-z0-9+/=' | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          head -1 "$key_path" | grep -q 'BEGIN PRIVATE KEY' || {
+            echo "APP_STORE_CONNECT_API_KEY_P8_BASE64 did not decode to a PEM private key."
+            exit 1
+          }
+      - name: Archive unsigned application
+        run: |
+          xcodebuild archive \
+            -project apps/ios/GroceryOS.xcodeproj \
+            -scheme GroceryOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/GroceryOS.xcarchive" \
+            APPLE_TEAM_ID="$APPLE_TEAM_ID" \
+            IOS_BUNDLE_ID="$IOS_BUNDLE_ID" \
+            IOS_SHARE_BUNDLE_ID="$IOS_SHARE_BUNDLE_ID" \
+            IOS_APP_GROUP_ID="$IOS_APP_GROUP_ID" \
+            GROCERY_WEB_BASE_URL="$GROCERY_WEB_BASE_URL" \
+            GROCERY_MARKETING_VERSION="$GROCERY_MARKETING_VERSION" \
+            GROCERY_BUILD_NUMBER="$GROCERY_BUILD_NUMBER" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+      - name: Export and validate IPA
+        run: |
+          cp apps/ios/ExportOptions.plist.template "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Set :teamID $APPLE_TEAM_ID" "$RUNNER_TEMP/ExportOptions.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :testFlightInternalTestingOnly' "$RUNNER_TEMP/ExportOptions.plist")" = "true"
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/GroceryOS.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8" \
+            -authenticationKeyID "$APP_STORE_CONNECT_API_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+          ipa="$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' -print -quit)"
+          test -n "$ipa"
+          rm -rf "$RUNNER_TEMP/signature-check"
+          mkdir -p "$RUNNER_TEMP/signature-check"
+          unzip -q "$ipa" -d "$RUNNER_TEMP/signature-check"
+          app="$(find "$RUNNER_TEMP/signature-check/Payload" -maxdepth 1 -name '*.app' -print -quit)"
+          share="$(find "$app/PlugIns" -maxdepth 1 -name '*.appex' -print -quit)"
+          test -n "$app" && test -n "$share"
+          test -s "$app/embedded.mobileprovision"
+          test -s "$share/embedded.mobileprovision"
+          codesign -vvv --strict "$share"
+          codesign -vvv --deep --strict "$app"
+          xcrun altool --validate-app --type ios --file "$ipa" \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+      - name: Upload approved internal build
+        run: |
+          ipa="$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' -print -quit)"
+          xcrun altool --upload-app --type ios --file "$ipa" \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+          echo "Upload accepted for App Store Connect processing; this does not prove TestFlight availability."
+      - name: Remove ephemeral signing material
+        if: ${{ always() }}
+        run: |
+          rm -f "$HOME/private_keys/AuthKey_$APP_STORE_CONNECT_API_KEY_ID.p8"

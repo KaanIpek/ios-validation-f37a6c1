@@ -1,0 +1,8 @@
+// Non-secret defaults for local project generation. CI overrides every release value.
+APPLE_TEAM_ID = 6U7VZ57P8K
+IOS_BUNDLE_ID = com.kaan.ipek.groceryos
+IOS_SHARE_BUNDLE_ID = com.kaan.ipek.groceryos.share
+IOS_APP_GROUP_ID = group.com.kaan.ipek.groceryos
+GROCERY_WEB_BASE_URL = https://invalid.example
+GROCERY_MARKETING_VERSION = 0.1.0
+GROCERY_BUILD_NUMBER = 1

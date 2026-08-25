@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "candidate": "P3.103",
+  "updatedAt": "2026-08-25",
+  "releaseMode": "OWNER_INTERNAL_TESTFLIGHT_ONLY",
+  "legalStatus": "NOT_A_LEGAL_OPINION_REVIEW_REQUIRED",
+  "safetyFlags": {
+    "FEATURE_ORDER_SUBMIT": false,
+    "FEATURE_AUTOBUY": false,
+    "FEATURE_PUBLIC_SCRAPING": false,
+    "FEATURE_BROWSER_AUTOMATION": false
+  },
+  "evidence": {
+    "githubHttpsRemoteVerified": true,
+    "githubAuthenticationVerified": true,
+    "hostedHttpsWebOriginVerified": true,
+    "ownerInternalBetaAuthorizationRecorded": true,
+    "testFlightInternalOnlyConfigured": true,
+    "appleDeveloperMembershipVerified": true,
+    "appStoreConnectRecordVerified": true,
+    "bundleIdentifiersRegistered": true,
+    "appGroupRegistered": true,
+    "distributionCertificateVerified": false,
+    "provisioningProfilesVerified": false,
+    "appStoreConnectApiKeyVerified": true,
+    "privacyOwnerApprovalRecorded": false,
+    "qualifiedCounselReviewRecorded": false,
+    "iosSimulatorAcceptancePassed": true,
+    "physicalIPhoneAcceptancePassed": false,
+    "krogerOAuthOnIOSPassed": false,
+    "shareExtensionOnIOSPassed": false,
+    "testFlightUploadConfirmed": false,
+    "testFlightBuildIdentifier": null
+  }
+}
