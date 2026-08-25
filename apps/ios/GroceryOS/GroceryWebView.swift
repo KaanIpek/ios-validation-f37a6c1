@@ -73,6 +73,13 @@ final class GroceryWebSession: NSObject, ObservableObject, WKNavigationDelegate 
         configuration.websiteDataStore = retainsRetailerSessions ? .default() : .nonPersistent()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.preferences.isFraudulentWebsiteWarningEnabled = true
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: "document.documentElement.dataset.nativeShell = 'ios';",
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            )
+        )
         return WKWebView(frame: .zero, configuration: configuration)
     }
 

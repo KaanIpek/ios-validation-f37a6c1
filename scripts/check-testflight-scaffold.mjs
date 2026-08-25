@@ -37,6 +37,8 @@ const [
   workflow,
   exampleEnvironment,
   netlify,
+  groceryWebView,
+  rootView,
 ] = await Promise.all([
   readFile(new URL("apps/ios/GroceryOS/Info.plist", root), "utf8"),
   readFile(new URL("apps/ios/GroceryOSShare/Info.plist", root), "utf8"),
@@ -50,6 +52,8 @@ const [
   readFile(new URL(".github/workflows/testflight.yml", root), "utf8"),
   readFile(new URL(".env.example", root), "utf8"),
   readFile(new URL("netlify.toml", root), "utf8"),
+  readFile(new URL("apps/ios/GroceryOS/GroceryWebView.swift", root), "utf8"),
+  readFile(new URL("apps/ios/GroceryOS/RootView.swift", root), "utf8"),
 ]);
 
 if (!info.includes("NSAllowsArbitraryLoads</key><false/>"))
@@ -155,6 +159,20 @@ for (const flag of [
   if (!new RegExp(`^${flag} = "false"$`, "mu").test(netlify))
     failures.push(`Netlify staging must keep ${flag}=false`);
 }
+if (
+  !groceryWebView.includes(
+    "document.documentElement.dataset.nativeShell = 'ios'",
+  )
+)
+  failures.push(
+    "iOS web view must mark the native shell before document rendering",
+  );
+if (!groceryWebView.includes("injectionTime: .atDocumentStart"))
+  failures.push("iOS native-shell marker must be injected at document start");
+if (!rootView.includes('case retailerLinks = "Retailer links"'))
+  failures.push("iOS menu must expose the bounded retailer-link destination");
+if (!rootView.includes('case .shop: "/compare/kroger"'))
+  failures.push("iOS Shop must remain isolated to the Kroger workflow");
 
 process.stdout.write(
   `${JSON.stringify({ ready: failures.length === 0, failures }, null, 2)}\n`,

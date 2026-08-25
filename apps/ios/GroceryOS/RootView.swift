@@ -28,6 +28,31 @@ private enum GroceryTask: String, CaseIterable, Identifiable {
     }
 }
 
+private enum GroceryMenuDestination: String, CaseIterable, Identifiable {
+    case importRecipe = "Import a recipe"
+    case retailerLinks = "Retailer links"
+    case foodSafety = "Food safety"
+    case terms = "Terms & privacy"
+
+    var id: Self { self }
+    var path: String {
+        switch self {
+        case .importRecipe: "/import/social"
+        case .retailerLinks: "/compare/shop"
+        case .foodSafety: "/recalls"
+        case .terms: "/legal/terms"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .importRecipe: "square.and.arrow.down"
+        case .retailerLinks: "arrow.up.right.square"
+        case .foodSafety: "checkmark.shield"
+        case .terms: "doc.text"
+        }
+    }
+}
+
 struct RootView: View {
     let configuration: Result<AppConfiguration, Error>
 
@@ -75,15 +100,37 @@ private struct GroceryWorkspaceView: View {
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) { taskBar }
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Text("Grocery OS").font(.headline)
+                    ToolbarItem(placement: .principal) {
+                        Label("Grocery OS", systemImage: "basket.fill")
+                            .font(.headline.weight(.semibold))
+                            .foregroundStyle(Color(red: 0.00, green: 0.21, blue: 0.15))
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Settings", systemImage: "gearshape") {
-                            settingsPresented = true
+                        Menu {
+                            Section("Grocery OS") {
+                                ForEach(GroceryMenuDestination.allCases) { destination in
+                                    Button {
+                                        session.load(path: destination.path)
+                                    } label: {
+                                        Label(destination.rawValue, systemImage: destination.icon)
+                                    }
+                                }
+                            }
+                            Section {
+                                Button {
+                                    settingsPresented = true
+                                } label: {
+                                    Label("Settings", systemImage: "gearshape")
+                                }
+                            }
+                        } label: {
+                            Label("Menu", systemImage: "line.3.horizontal")
                         }
                     }
                 }
+                .toolbarBackground(Color(red: 0.94, green: 0.99, blue: 0.96), for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarColorScheme(.light, for: .navigationBar)
                 .alert("Connection issue", isPresented: errorIsPresented) {
                     Button("Try again") { session.load(path: selectedTask.path) }
                     Button("Dismiss", role: .cancel) {}
@@ -99,6 +146,8 @@ private struct GroceryWorkspaceView: View {
                     if phase == .active { consumePendingShare() }
                 }
         }
+        .tint(Color(red: 0.04, green: 0.34, blue: 0.24))
+        .preferredColorScheme(.light)
     }
 
     private var errorIsPresented: Binding<Bool> {
@@ -117,18 +166,31 @@ private struct GroceryWorkspaceView: View {
                 } label: {
                     VStack(spacing: 3) {
                         Image(systemName: task.icon)
-                        Text(task.rawValue).font(.caption2)
+                            .font(.system(size: 17, weight: .semibold))
+                        Text(task.rawValue)
+                            .font(.caption2.weight(.semibold))
                     }
+                    .padding(.vertical, 7)
                     .frame(maxWidth: .infinity)
-                    .foregroundStyle(selectedTask == task ? Color.accentColor : .secondary)
+                    .foregroundStyle(
+                        selectedTask == task
+                            ? Color(red: 0.00, green: 0.21, blue: 0.15)
+                            : Color(red: 0.35, green: 0.40, blue: 0.37)
+                    )
+                    .background(
+                        selectedTask == task
+                            ? Color(red: 0.63, green: 0.96, blue: 0.79)
+                            : Color.clear,
+                        in: Capsule()
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(selectedTask == task ? .isSelected : [])
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 9)
-        .background(.regularMaterial)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color(red: 0.985, green: 0.995, blue: 0.99))
         .overlay(alignment: .top) { Divider() }
     }
 
