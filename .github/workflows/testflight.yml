@@ -65,15 +65,21 @@ jobs:
           find apps/ios -type f \( -name '*.plist' -o -name '*.xcprivacy' -o -name '*.entitlements' \) \
             -print0 | xargs -0 -n1 plutil -lint
       - name: Run iOS simulator tests
+        timeout-minutes: 8
         run: |
           simulator_id="$(xcrun simctl list devices available -j | \
             jq -r '[.devices[][] | select(.isAvailable and (.name | startswith("iPhone")))][0].udid')"
           test -n "$simulator_id"
           test "$simulator_id" != "null"
+          xcrun simctl shutdown all || true
+          xcrun simctl boot "$simulator_id" || true
+          xcrun simctl bootstatus "$simulator_id" -b
           xcodebuild test \
             -project apps/ios/GroceryOS.xcodeproj \
             -scheme GroceryOS \
             -destination "platform=iOS Simulator,id=$simulator_id" \
+            -parallel-testing-enabled NO \
+            -maximum-parallel-testing-workers 1 \
             CODE_SIGNING_ALLOWED=NO \
             APPLE_TEAM_ID="$APPLE_TEAM_ID" \
             IOS_BUNDLE_ID="$IOS_BUNDLE_ID" \
