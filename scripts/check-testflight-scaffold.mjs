@@ -56,6 +56,8 @@ if (!info.includes("NSAllowsArbitraryLoads</key><false/>"))
   failures.push("ATS is not fail-closed");
 if (!info.includes("NSAllowsLocalNetworking</key><false/>"))
   failures.push("local networking is not disabled");
+if (!info.includes("ITSAppUsesNonExemptEncryption</key>\n  <false/>"))
+  failures.push("exempt-only encryption declaration is missing");
 if (!shareInfo.includes("<key>NSExtension</key>"))
   failures.push("Share extension metadata is missing");
 if (!shareInfo.includes("com.apple.share-services"))
